@@ -303,29 +303,41 @@ def generate_sequence_hypotheses(
     base_hypotheses: list[Hypothesis],
     profile: SegmentationProfile | None = None,
     *,
-    top_k_first: int = 8,
+    top_k_first: int | None = None,
 ) -> list[Hypothesis]:
     """Generate residual-guided two-step programs.
 
-    This is intentionally not a full Cartesian-product search. It takes the
-    strongest structural first-step hypotheses, applies each to train inputs,
-    then runs one-step generators on the residual task:
+    This is intentionally not a full Cartesian-product search. It takes
+    structural first-step hypotheses, applies each to train inputs, then runs
+    one-step generators on the residual task:
 
         first(input) -> intermediate
         second(intermediate) -> expected_output
 
-    In mixed tasks, a useful first step can have train_match=0/ N because the
-    remaining transformation is still missing. Therefore selection is based on
-    structural confidence, not only partial exact matches.
+    In mixed tasks, a useful first step can have train_match=0/N because the
+    remaining transformation is still missing. Therefore coverage matters more
+    than a small top-k. By default all structural candidates are considered.
     """
     if profile is None:
         profile = SegmentationProfile()
 
     candidates = [h for h in base_hypotheses if h.match_rate < 1.0 and h.confidence > 0.0]
-    candidates.sort(key=lambda h: (h.confidence, h.match_rate), reverse=True)
+    candidates.sort(
+        key=lambda h: (
+            h.generator == "TranslationGenerator",
+            h.generator == "RecolorGenerator",
+            h.generator == "DeleteGenerator",
+            h.confidence,
+            h.match_rate,
+        ),
+        reverse=True,
+    )
+    if top_k_first is not None:
+        candidates = candidates[:top_k_first]
+
     sequence_hypotheses: list[Hypothesis] = []
 
-    for first in candidates[:top_k_first]:
+    for first in candidates:
         residual = _residual_train_pairs(first.program, train_pairs, profile)
         if residual is None:
             continue
