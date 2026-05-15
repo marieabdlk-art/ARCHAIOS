@@ -23,7 +23,8 @@ Current MVP supports:
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
 - traceable pipeline;
-- CLI solver for JSON task files.
+- CLI solver for JSON task files;
+- evaluation harness for task directories.
 
 ## Install
 
@@ -51,7 +52,19 @@ Write result to a file:
 archaios solve examples/tasks/shift_then_recolor.json --json --output result.json
 ```
 
-The example task should produce a residual-guided composition similar to:
+Evaluate all JSON tasks in a directory:
+
+```bash
+archaios eval examples/tasks
+```
+
+Write an evaluation report:
+
+```bash
+archaios eval examples/tasks --json --output reports/eval.json
+```
+
+The mixed example task should produce a residual-guided composition similar to:
 
 ```text
 SEQ(SHIFT(OBJECTS(color=2), dx=2, dy=0), RECOLOR(OBJECTS(color=1), {1->3}))
@@ -95,10 +108,11 @@ Implemented:
 - `InvariantAnalyzer`
 - `Pipeline`
 - `archaios solve` CLI
+- `archaios eval` CLI
 
 Planned:
 
 - deeper selector language: largest/smallest/touching-border;
 - topology layer: inside/frame/hole/border-touching;
 - robustness evaluator via metamorphic consistency;
-- evaluation harness on curated ARC-Easy subset.
+- evaluation on curated ARC-Easy subset.
