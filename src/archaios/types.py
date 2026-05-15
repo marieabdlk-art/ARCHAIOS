@@ -95,7 +95,16 @@ class RecolorProgram:
         return f"RECOLOR({self.selector.to_dsl()}, {{{mapping}}})"
 
 
-Program = Union[ShiftProgram, RecolorProgram]
+@dataclass(frozen=True)
+class SeqProgram:
+    first: "Program"
+    second: "Program"
+
+    def to_dsl(self) -> str:
+        return f"SEQ({self.first.to_dsl()}, {self.second.to_dsl()})"
+
+
+Program = Union[ShiftProgram, RecolorProgram, SeqProgram]
 
 
 @dataclass
