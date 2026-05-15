@@ -5,7 +5,7 @@ import numpy as np
 from .executor import InvalidProgram, execute
 from .matching import match_objects_for_recolor, match_objects_for_translation
 from .objects import detect_background, extract_objects
-from .types import DeleteProgram, Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, SeqProgram, ShiftProgram
+from .types import DeleteProgram, FillBBoxProgram, Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, SeqProgram, ShiftProgram
 
 
 def verify_program(program, train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile | None = None) -> tuple[int, int]:
@@ -42,6 +42,13 @@ def _delete_allowed(inv: Invariants) -> bool:
     return "object_count" in inv.changed
 
 
+def _fill_bbox_allowed(inv: Invariants) -> bool:
+    families = set(inv.candidate_transform_families)
+    if families & {"copy_or_fill", "unknown"}:
+        return True
+    return "area_multiset" in inv.changed or "color_multiset" in inv.changed
+
+
 def _candidate_selectors_for_objects(train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile) -> list[Selector]:
     selectors: list[Selector] = [
         Selector.all(),
@@ -69,6 +76,18 @@ def _candidate_selectors_for_objects(train_pairs: list[tuple[Grid, Grid]], profi
     for selector in selectors:
         unique[selector.to_dsl()] = selector
     return list(unique.values())
+
+
+def _candidate_output_colors(train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile) -> list[int]:
+    colors = set()
+    for inp, out in train_pairs:
+        bg_in = profile.background if profile.background is not None else detect_background(inp)
+        bg_out = profile.background if profile.background is not None else detect_background(out)
+        in_colors = {int(c) for c in np.unique(inp) if int(c) != bg_in}
+        out_colors = {int(c) for c in np.unique(out) if int(c) != bg_out}
+        colors.update(out_colors - in_colors)
+        colors.update(out_colors)
+    return sorted(colors)
 
 
 def generate_translation_hypotheses(
@@ -269,6 +288,42 @@ def generate_delete_hypotheses(
     return sorted(hypotheses, key=lambda h: (h.match_rate, h.confidence), reverse=True)
 
 
+def generate_fill_bbox_hypotheses(
+    train_pairs: list[tuple[Grid, Grid]],
+    inv: Invariants,
+    profile: SegmentationProfile | None = None,
+) -> list[Hypothesis]:
+    if not _fill_bbox_allowed(inv):
+        return []
+    if profile is None:
+        profile = SegmentationProfile()
+
+    hypotheses: list[Hypothesis] = []
+    colors = _candidate_output_colors(train_pairs, profile)
+    if not colors:
+        return []
+
+    for selector in _candidate_selectors_for_objects(train_pairs, profile):
+        for color in colors:
+            program = FillBBoxProgram(selector, color)
+            passed, total = verify_program(program, train_pairs, profile)
+            selector_bonus = 0.08 if selector.kind in {"LARGEST", "SMALLEST", "COLOR", "SIZE"} else 0.0
+            selector_penalty = 0.10 if selector.kind == "ALL" else 0.0
+            confidence = max(0.0, 0.70 + selector_bonus - selector_penalty)
+            hypotheses.append(
+                Hypothesis(
+                    program=program,
+                    generator="FillBBoxGenerator",
+                    confidence=confidence,
+                    train_match=f"{passed}/{total}",
+                    match_rate=passed / total if total else 0.0,
+                    notes=[f"Fill bbox candidate: selector={selector.to_dsl()}, color={color}."],
+                )
+            )
+
+    return sorted(hypotheses, key=lambda h: (h.match_rate, h.confidence), reverse=True)
+
+
 def _residual_train_pairs(
     first_program,
     train_pairs: list[tuple[Grid, Grid]],
@@ -295,6 +350,7 @@ def _generate_single_step_hypotheses(
     hypotheses.extend(generate_translation_hypotheses(train_pairs, inv, profile))
     hypotheses.extend(generate_recolor_hypotheses(train_pairs, inv, profile))
     hypotheses.extend(generate_delete_hypotheses(train_pairs, inv, profile))
+    hypotheses.extend(generate_fill_bbox_hypotheses(train_pairs, inv, profile))
     return hypotheses
 
 
@@ -327,6 +383,7 @@ def generate_sequence_hypotheses(
             h.generator == "TranslationGenerator",
             h.generator == "RecolorGenerator",
             h.generator == "DeleteGenerator",
+            h.generator == "FillBBoxGenerator",
             h.confidence,
             h.match_rate,
         ),
