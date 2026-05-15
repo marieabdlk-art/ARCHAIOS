@@ -6,6 +6,7 @@ from typing import Optional
 from .executor import InvalidProgram, execute
 from .generators import (
     generate_delete_hypotheses,
+    generate_fill_bbox_hypotheses,
     generate_recolor_hypotheses,
     generate_sequence_hypotheses,
     generate_translation_hypotheses,
@@ -122,6 +123,7 @@ def run_pipeline(
         hypotheses.extend(generate_translation_hypotheses(parsed_train, inv, current_profile))
         hypotheses.extend(generate_recolor_hypotheses(parsed_train, inv, current_profile))
         hypotheses.extend(generate_delete_hypotheses(parsed_train, inv, current_profile))
+        hypotheses.extend(generate_fill_bbox_hypotheses(parsed_train, inv, current_profile))
 
         exact_single = [h for h in hypotheses if h.match_rate == 1.0]
         if allow_composition and not exact_single and hypotheses:
