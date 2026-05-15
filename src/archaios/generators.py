@@ -5,7 +5,7 @@ import numpy as np
 from .executor import InvalidProgram, execute
 from .matching import match_objects_for_recolor, match_objects_for_translation
 from .objects import detect_background, extract_objects
-from .types import Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, ShiftProgram
+from .types import Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, SeqProgram, ShiftProgram
 
 
 def verify_program(program, train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile | None = None) -> tuple[int, int]:
@@ -203,3 +203,86 @@ def generate_recolor_hypotheses(
         )
 
     return sorted(hypotheses, key=lambda h: (h.match_rate, h.confidence), reverse=True)
+
+
+def _residual_train_pairs(
+    first_program,
+    train_pairs: list[tuple[Grid, Grid]],
+    profile: SegmentationProfile | None = None,
+) -> list[tuple[Grid, Grid]] | None:
+    residual: list[tuple[Grid, Grid]] = []
+    for inp, expected in train_pairs:
+        try:
+            intermediate = execute(first_program, inp, profile)
+        except InvalidProgram:
+            return None
+        residual.append((intermediate, expected))
+    return residual
+
+
+def _generate_single_step_hypotheses(
+    train_pairs: list[tuple[Grid, Grid]],
+    profile: SegmentationProfile | None = None,
+) -> list[Hypothesis]:
+    from .invariants import detect_invariants
+
+    inv = detect_invariants(train_pairs, profile)
+    hypotheses: list[Hypothesis] = []
+    hypotheses.extend(generate_translation_hypotheses(train_pairs, inv, profile))
+    hypotheses.extend(generate_recolor_hypotheses(train_pairs, inv, profile))
+    return hypotheses
+
+
+def generate_sequence_hypotheses(
+    train_pairs: list[tuple[Grid, Grid]],
+    base_hypotheses: list[Hypothesis],
+    profile: SegmentationProfile | None = None,
+    *,
+    top_k_first: int = 6,
+) -> list[Hypothesis]:
+    """Generate residual-guided two-step programs.
+
+    This is intentionally not a full Cartesian-product search. It takes the
+    strongest partial first-step hypotheses, applies each to train inputs, then
+    runs the normal one-step generators on the residual task:
+
+        first(input) -> intermediate
+        second(intermediate) -> expected_output
+
+    Accepted candidate: SEQ(first, second)
+    """
+    if profile is None:
+        profile = SegmentationProfile()
+
+    partial = [h for h in base_hypotheses if 0.0 < h.match_rate < 1.0]
+    partial.sort(key=lambda h: (h.match_rate, h.confidence), reverse=True)
+    sequence_hypotheses: list[Hypothesis] = []
+
+    for first in partial[:top_k_first]:
+        residual = _residual_train_pairs(first.program, train_pairs, profile)
+        if residual is None:
+            continue
+
+        second_candidates = _generate_single_step_hypotheses(residual, profile)
+        for second in second_candidates:
+            seq = SeqProgram(first=first.program, second=second.program)
+            passed, total = verify_program(seq, train_pairs, profile)
+            if passed == 0:
+                continue
+            confidence = max(0.0, 0.5 * first.confidence + 0.5 * second.confidence - 0.05)
+            sequence_hypotheses.append(
+                Hypothesis(
+                    program=seq,
+                    generator="SequenceGenerator",
+                    confidence=confidence,
+                    train_match=f"{passed}/{total}",
+                    match_rate=passed / total if total else 0.0,
+                    notes=[
+                        "Residual-guided composition.",
+                        f"First: {first.program_dsl}",
+                        f"Second: {second.program_dsl}",
+                    ],
+                )
+            )
+
+    return sorted(sequence_hypotheses, key=lambda h: (h.match_rate, h.confidence), reverse=True)
