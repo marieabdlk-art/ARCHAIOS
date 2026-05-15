@@ -252,27 +252,29 @@ def generate_sequence_hypotheses(
     base_hypotheses: list[Hypothesis],
     profile: SegmentationProfile | None = None,
     *,
-    top_k_first: int = 6,
+    top_k_first: int = 8,
 ) -> list[Hypothesis]:
     """Generate residual-guided two-step programs.
 
     This is intentionally not a full Cartesian-product search. It takes the
-    strongest partial first-step hypotheses, applies each to train inputs, then
-    runs the normal one-step generators on the residual task:
+    strongest structural first-step hypotheses, applies each to train inputs,
+    then runs one-step generators on the residual task:
 
         first(input) -> intermediate
         second(intermediate) -> expected_output
 
-    Accepted candidate: SEQ(first, second)
+    In mixed tasks, a useful first step can have train_match=0/ N because the
+    remaining transformation is still missing. Therefore selection is based on
+    structural confidence, not only partial exact matches.
     """
     if profile is None:
         profile = SegmentationProfile()
 
-    partial = [h for h in base_hypotheses if 0.0 < h.match_rate < 1.0]
-    partial.sort(key=lambda h: (h.match_rate, h.confidence), reverse=True)
+    candidates = [h for h in base_hypotheses if h.match_rate < 1.0 and h.confidence > 0.0]
+    candidates.sort(key=lambda h: (h.confidence, h.match_rate), reverse=True)
     sequence_hypotheses: list[Hypothesis] = []
 
-    for first in partial[:top_k_first]:
+    for first in candidates[:top_k_first]:
         residual = _residual_train_pairs(first.program, train_pairs, profile)
         if residual is None:
             continue
