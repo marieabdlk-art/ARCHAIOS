@@ -28,7 +28,8 @@ Current MVP supports:
 - exact-match verification;
 - traceable pipeline;
 - CLI solver for JSON task files;
-- evaluation harness for task directories.
+- evaluation harness for task directories;
+- ARC-style `test[0].output` scoring when available.
 
 ## Install
 
@@ -67,6 +68,25 @@ Write an evaluation report:
 ```bash
 archaios eval examples/tasks --json --output reports/eval.json
 ```
+
+Prepare a local ARC subset:
+
+```bash
+python scripts/prepare_arc_subset.py \
+  --arc-root /path/to/ARC-AGI \
+  --output datasets/arc_easy_subset \
+  --task-list docs/arc_easy_task_ids.txt
+```
+
+Evaluate the prepared ARC subset:
+
+```bash
+archaios eval datasets/arc_easy_subset/tasks \
+  --json \
+  --output reports/arc_eval.json
+```
+
+See [`docs/ARC_EVAL.md`](docs/ARC_EVAL.md) for details.
 
 The mixed example task should produce a residual-guided composition similar to:
 
@@ -113,10 +133,12 @@ pytest
     {"input": [[0, 1]], "output": [[0, 2]]}
   ],
   "test": [
-    {"input": [[1, 0]]}
+    {"input": [[1, 0]], "output": [[2, 0]]}
   ]
 }
 ```
+
+`test[0].output` is optional. If present, CLI reports `test_match` and eval reports aggregate `test_accuracy`.
 
 ## Status
 
@@ -134,6 +156,7 @@ Implemented:
 - `Pipeline`
 - `archaios solve` CLI
 - `archaios eval` CLI
+- ARC-style test scoring
 
 Planned:
 
