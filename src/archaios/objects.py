@@ -118,6 +118,20 @@ def _extreme(objects: list[ArcObject], key_fn, reverse: bool = False) -> list[Ar
     return [obj for obj in objects if key_fn(obj) == value]
 
 
+def object_shape(obj: ArcObject) -> str:
+    if obj.area == 1:
+        return "single_pixel"
+    if obj.height == 1 and obj.width > 1 and obj.area == obj.width:
+        return "line_horizontal"
+    if obj.width == 1 and obj.height > 1 and obj.area == obj.height:
+        return "line_vertical"
+    if obj.width == obj.height and obj.area == obj.width * obj.height:
+        return "square"
+    if obj.width != obj.height and obj.area == obj.width * obj.height:
+        return "rectangle"
+    return "other"
+
+
 def select_objects(objects: list[ArcObject], selector) -> list[ArcObject]:
     if selector.kind == "ALL":
         return objects
@@ -148,4 +162,6 @@ def select_objects(objects: list[ArcObject], selector) -> list[ArcObject]:
             return _extreme(objects, lambda obj: obj.bbox[0])
         if selector.value == "bottom":
             return _extreme(objects, lambda obj: obj.bbox[2], reverse=True)
+    if selector.kind == "SHAPE":
+        return [obj for obj in objects if object_shape(obj) == selector.value]
     return []
