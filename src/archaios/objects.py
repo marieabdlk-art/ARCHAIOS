@@ -111,6 +111,13 @@ def extract_objects(
     return objects
 
 
+def _extreme(objects: list[ArcObject], key_fn, reverse: bool = False) -> list[ArcObject]:
+    if not objects:
+        return []
+    value = key_fn(max(objects, key=key_fn) if reverse else min(objects, key=key_fn))
+    return [obj for obj in objects if key_fn(obj) == value]
+
+
 def select_objects(objects: list[ArcObject], selector) -> list[ArcObject]:
     if selector.kind == "ALL":
         return objects
@@ -118,4 +125,27 @@ def select_objects(objects: list[ArcObject], selector) -> list[ArcObject]:
         return [obj for obj in objects if obj.color == selector.value]
     if selector.kind == "SIZE":
         return [obj for obj in objects if obj.area == selector.value]
+    if selector.kind == "LARGEST":
+        if not objects:
+            return []
+        max_area = max(obj.area for obj in objects)
+        return [obj for obj in objects if obj.area == max_area]
+    if selector.kind == "SMALLEST":
+        if not objects:
+            return []
+        min_area = min(obj.area for obj in objects)
+        return [obj for obj in objects if obj.area == min_area]
+    if selector.kind == "TOUCHING_BORDER":
+        return [obj for obj in objects if obj.touches_border]
+    if selector.kind == "NOT_TOUCHING_BORDER":
+        return [obj for obj in objects if not obj.touches_border]
+    if selector.kind == "POSITION":
+        if selector.value == "left":
+            return _extreme(objects, lambda obj: obj.bbox[1])
+        if selector.value == "right":
+            return _extreme(objects, lambda obj: obj.bbox[3], reverse=True)
+        if selector.value == "top":
+            return _extreme(objects, lambda obj: obj.bbox[0])
+        if selector.value == "bottom":
+            return _extreme(objects, lambda obj: obj.bbox[2], reverse=True)
     return []
