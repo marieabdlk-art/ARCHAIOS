@@ -74,6 +74,49 @@ def test_delete_smallest():
                                           [0, 0, 0, 0, 0]]
 
 
+def test_fill_bbox_largest():
+    result = run_pipeline(
+        task_id="fill_bbox_largest",
+        train_pairs=[
+            (
+                [[0, 0, 0, 0, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 2, 0, 2, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 0, 0, 0, 0]],
+                [[0, 0, 0, 0, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 2, 3, 2, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 0, 0, 0, 0]],
+            ),
+            (
+                [[0, 2, 2, 2, 0],
+                 [0, 2, 0, 2, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 0, 0, 0, 0]],
+                [[0, 2, 2, 2, 0],
+                 [0, 2, 3, 2, 0],
+                 [0, 2, 2, 2, 0],
+                 [0, 0, 0, 0, 0]],
+            ),
+        ],
+        test_input=[[0, 0, 0, 0, 0],
+                    [2, 2, 2, 0, 0],
+                    [2, 0, 2, 0, 0],
+                    [2, 2, 2, 0, 0],
+                    [0, 0, 0, 0, 0]],
+    )
+    assert result.status == "solved"
+    assert result.generator == "FillBBoxGenerator"
+    assert result.program.startswith("FILL_BBOX")
+    assert result.prediction.tolist() == [[0, 0, 0, 0, 0],
+                                          [2, 2, 2, 0, 0],
+                                          [2, 3, 2, 0, 0],
+                                          [2, 2, 2, 0, 0],
+                                          [0, 0, 0, 0, 0]]
+
+
 def test_sequence_shift_then_recolor():
     result = run_pipeline(
         task_id="shift_then_recolor",
