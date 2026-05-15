@@ -22,15 +22,42 @@ Current MVP supports:
 - `SeqProgram` composition via residual-guided search;
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
-- traceable pipeline.
+- traceable pipeline;
+- CLI solver for JSON task files.
 
 ## Install
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-## Run examples
+## CLI usage
+
+Solve a task JSON:
+
+```bash
+archaios solve examples/tasks/shift_then_recolor.json --trace
+```
+
+Print full JSON result:
+
+```bash
+archaios solve examples/tasks/shift_then_recolor.json --json
+```
+
+Write result to a file:
+
+```bash
+archaios solve examples/tasks/shift_then_recolor.json --json --output result.json
+```
+
+The example task should produce a residual-guided composition similar to:
+
+```text
+SEQ(SHIFT(OBJECTS(color=2), dx=2, dy=0), RECOLOR(OBJECTS(color=1), {1->3}))
+```
+
+## Python example
 
 ```bash
 python examples/run_basic.py
@@ -40,6 +67,20 @@ python examples/run_basic.py
 
 ```bash
 pytest
+```
+
+## Task JSON format
+
+```json
+{
+  "task_id": "example",
+  "train": [
+    {"input": [[0, 1]], "output": [[0, 2]]}
+  ],
+  "test": [
+    {"input": [[1, 0]]}
+  ]
+}
 ```
 
 ## Status
@@ -53,6 +94,7 @@ Implemented:
 - `SequenceGenerator`
 - `InvariantAnalyzer`
 - `Pipeline`
+- `archaios solve` CLI
 
 Planned:
 
