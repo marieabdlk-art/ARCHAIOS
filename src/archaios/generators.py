@@ -60,6 +60,11 @@ def _candidate_selectors_for_objects(train_pairs: list[tuple[Grid, Grid]], profi
         Selector.position("right"),
         Selector.position("top"),
         Selector.position("bottom"),
+        Selector.shape("square"),
+        Selector.shape("rectangle"),
+        Selector.shape("line_horizontal"),
+        Selector.shape("line_vertical"),
+        Selector.shape("single_pixel"),
     ]
     colors = set()
     sizes = set()
@@ -271,7 +276,7 @@ def generate_delete_hypotheses(
     for selector in _candidate_selectors_for_objects(train_pairs, profile):
         program = DeleteProgram(selector)
         passed, total = verify_program(program, train_pairs, profile)
-        selector_bonus = 0.10 if selector.kind in {"LARGEST", "SMALLEST", "TOUCHING_BORDER", "NOT_TOUCHING_BORDER", "POSITION"} else 0.0
+        selector_bonus = 0.10 if selector.kind in {"LARGEST", "SMALLEST", "TOUCHING_BORDER", "NOT_TOUCHING_BORDER", "POSITION", "SHAPE"} else 0.0
         selector_penalty = 0.15 if selector.kind == "ALL" else 0.0
         confidence = max(0.0, 0.75 + selector_bonus - selector_penalty)
         hypotheses.append(
@@ -307,7 +312,7 @@ def generate_fill_bbox_hypotheses(
         for color in colors:
             program = FillBBoxProgram(selector, color)
             passed, total = verify_program(program, train_pairs, profile)
-            selector_bonus = 0.08 if selector.kind in {"LARGEST", "SMALLEST", "COLOR", "SIZE"} else 0.0
+            selector_bonus = 0.08 if selector.kind in {"LARGEST", "SMALLEST", "COLOR", "SIZE", "SHAPE"} else 0.0
             selector_penalty = 0.10 if selector.kind == "ALL" else 0.0
             confidence = max(0.0, 0.70 + selector_bonus - selector_penalty)
             hypotheses.append(
