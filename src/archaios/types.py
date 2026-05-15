@@ -87,6 +87,13 @@ class Selector:
             raise ValueError("position selector must be one of: left, right, top, bottom")
         return Selector("POSITION", position)
 
+    @staticmethod
+    def shape(shape: str) -> "Selector":
+        allowed = {"square", "rectangle", "line_horizontal", "line_vertical", "single_pixel"}
+        if shape not in allowed:
+            raise ValueError(f"shape selector must be one of: {sorted(allowed)}")
+        return Selector("SHAPE", shape)
+
     def to_dsl(self) -> str:
         if self.kind == "ALL":
             return "ALL"
@@ -104,6 +111,8 @@ class Selector:
             return "OBJECTS(touches_border=false)"
         if self.kind == "POSITION":
             return f"OBJECTS(position={self.value})"
+        if self.kind == "SHAPE":
+            return f"OBJECTS(shape={self.value})"
         return f"UNKNOWN_SELECTOR({self.kind},{self.value})"
 
 
