@@ -17,7 +17,8 @@ Current MVP supports:
 
 - object extraction with configurable segmentation profiles;
 - invariant analysis;
-- expanded selectors: `ALL`, `COLOR`, `SIZE`, `LARGEST`, `SMALLEST`, `TOUCHING_BORDER`, `NOT_TOUCHING_BORDER`, `POSITION`;
+- expanded selectors: `ALL`, `COLOR`, `SIZE`, `LARGEST`, `SMALLEST`, `TOUCHING_BORDER`, `NOT_TOUCHING_BORDER`, `POSITION`, `SHAPE`;
+- shape selectors: `square`, `rectangle`, `line_horizontal`, `line_vertical`, `single_pixel`;
 - translation hypotheses;
 - recolor hypotheses;
 - deletion hypotheses;
@@ -79,6 +80,12 @@ The deletion example should produce a selector-based program similar to:
 DELETE(SELECT_SMALLEST(OBJECTS()))
 ```
 
+The shape-selector example should produce a program similar to:
+
+```text
+DELETE(OBJECTS(shape=single_pixel))
+```
+
 The bbox-fill example should produce a program similar to:
 
 ```text
@@ -122,6 +129,7 @@ Implemented:
 - `DeleteGenerator`
 - `FillBBoxGenerator`
 - `SequenceGenerator`
+- shape-based selectors
 - `InvariantAnalyzer`
 - `Pipeline`
 - `archaios solve` CLI
@@ -129,7 +137,7 @@ Implemented:
 
 Planned:
 
-- deeper selector language: shape-based selectors, inside/outside selectors, relation selectors;
+- deeper selector language: inside/outside selectors, relation selectors;
 - topology layer: inside/frame/hole/border-touching;
 - robustness evaluator via metamorphic consistency;
 - evaluation on curated ARC-Easy subset.
