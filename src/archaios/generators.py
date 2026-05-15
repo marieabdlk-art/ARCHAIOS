@@ -21,12 +21,26 @@ def verify_program(program, train_pairs: list[tuple[Grid, Grid]], profile: Segme
     return passed, total
 
 
+def _translation_allowed(inv: Invariants) -> bool:
+    families = set(inv.candidate_transform_families)
+    if families & {"translation_uniform", "translation_individual", "unknown"}:
+        return True
+    return "absolute_position" in inv.changed and "shape_signature" in inv.preserved
+
+
+def _recolor_allowed(inv: Invariants) -> bool:
+    families = set(inv.candidate_transform_families)
+    if families & {"recoloring", "unknown"}:
+        return True
+    return "color_multiset" in inv.changed and "shape_signature" in inv.preserved
+
+
 def generate_translation_hypotheses(
     train_pairs: list[tuple[Grid, Grid]],
     inv: Invariants,
     profile: SegmentationProfile | None = None,
 ) -> list[Hypothesis]:
-    if not any(f in inv.candidate_transform_families for f in ("translation_uniform", "translation_individual")):
+    if not _translation_allowed(inv):
         return []
     if profile is None:
         profile = SegmentationProfile()
@@ -141,7 +155,7 @@ def generate_recolor_hypotheses(
     inv: Invariants,
     profile: SegmentationProfile | None = None,
 ) -> list[Hypothesis]:
-    if "recoloring" not in inv.candidate_transform_families:
+    if not _recolor_allowed(inv):
         return []
     if profile is None:
         profile = SegmentationProfile()
