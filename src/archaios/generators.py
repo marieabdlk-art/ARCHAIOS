@@ -5,7 +5,7 @@ import numpy as np
 from .executor import InvalidProgram, execute
 from .matching import match_objects_for_recolor, match_objects_for_translation
 from .objects import detect_background, extract_objects
-from .types import Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, SeqProgram, ShiftProgram
+from .types import DeleteProgram, Grid, Hypothesis, Invariants, RecolorProgram, SegmentationProfile, Selector, SeqProgram, ShiftProgram
 
 
 def verify_program(program, train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile | None = None) -> tuple[int, int]:
@@ -33,6 +33,42 @@ def _recolor_allowed(inv: Invariants) -> bool:
     if families & {"recoloring", "unknown"}:
         return True
     return "color_multiset" in inv.changed and "shape_signature" in inv.preserved
+
+
+def _delete_allowed(inv: Invariants) -> bool:
+    families = set(inv.candidate_transform_families)
+    if families & {"deletion", "unknown"}:
+        return True
+    return "object_count" in inv.changed
+
+
+def _candidate_selectors_for_objects(train_pairs: list[tuple[Grid, Grid]], profile: SegmentationProfile) -> list[Selector]:
+    selectors: list[Selector] = [
+        Selector.all(),
+        Selector.largest(),
+        Selector.smallest(),
+        Selector.touching_border(),
+        Selector.not_touching_border(),
+        Selector.position("left"),
+        Selector.position("right"),
+        Selector.position("top"),
+        Selector.position("bottom"),
+    ]
+    colors = set()
+    sizes = set()
+    for inp, _ in train_pairs:
+        bg = profile.background if profile.background is not None else detect_background(inp)
+        profile_in = SegmentationProfile(mode=profile.mode, connectivity=profile.connectivity, background=bg)
+        for obj in extract_objects(inp, bg, profile=profile_in):
+            colors.add(obj.color)
+            sizes.add(obj.area)
+    selectors.extend(Selector.color(c) for c in sorted(colors))
+    selectors.extend(Selector.size(s) for s in sorted(sizes))
+
+    unique: dict[str, Selector] = {}
+    for selector in selectors:
+        unique[selector.to_dsl()] = selector
+    return list(unique.values())
 
 
 def generate_translation_hypotheses(
@@ -73,15 +109,7 @@ def generate_translation_hypotheses(
     uniform_threshold = 0.0
 
     if dx_std <= uniform_threshold and dy_std <= uniform_threshold:
-        candidates = [ShiftProgram(Selector.all(), dx_mean, dy_mean)]
-
-        colors = set()
-        for inp, _ in train_pairs:
-            bg = profile.background if profile.background is not None else detect_background(inp)
-            profile_in = SegmentationProfile(mode=profile.mode, connectivity=profile.connectivity, background=bg)
-            for obj in extract_objects(inp, bg, profile=profile_in):
-                colors.add(obj.color)
-        candidates += [ShiftProgram(Selector.color(c), dx_mean, dy_mean) for c in sorted(colors)]
+        candidates = [ShiftProgram(selector, dx_mean, dy_mean) for selector in _candidate_selectors_for_objects(train_pairs, profile)]
 
         for program in candidates:
             passed, total = verify_program(program, train_pairs, profile)
@@ -187,16 +215,7 @@ def generate_recolor_hypotheses(
     hypotheses: list[Hypothesis] = []
     matching_conf = float(np.mean(match_confs)) if match_confs else 0.0
 
-    candidates: list[RecolorProgram] = [RecolorProgram(Selector.all(), merged)]
-    candidates += [RecolorProgram(Selector.color(src), {src: tgt}) for src, tgt in sorted(active_map.items())]
-
-    sizes = set()
-    for inp, _ in train_pairs:
-        bg = profile.background if profile.background is not None else detect_background(inp)
-        profile_in = SegmentationProfile(mode=profile.mode, connectivity=profile.connectivity, background=bg)
-        for obj in extract_objects(inp, bg, profile=profile_in):
-            sizes.add(obj.area)
-    candidates += [RecolorProgram(Selector.size(size), merged) for size in sorted(sizes)]
+    candidates: list[RecolorProgram] = [RecolorProgram(selector, merged if selector.kind != "COLOR" else {selector.value: active_map[selector.value]}) for selector in _candidate_selectors_for_objects(train_pairs, profile) if selector.kind != "COLOR" or selector.value in active_map]
 
     for program in candidates:
         passed, total = verify_program(program, train_pairs, profile)
@@ -213,6 +232,37 @@ def generate_recolor_hypotheses(
                     f"Color map detected: {active_map}.",
                     f"matching_confidence={matching_conf:.2f}.",
                 ],
+            )
+        )
+
+    return sorted(hypotheses, key=lambda h: (h.match_rate, h.confidence), reverse=True)
+
+
+def generate_delete_hypotheses(
+    train_pairs: list[tuple[Grid, Grid]],
+    inv: Invariants,
+    profile: SegmentationProfile | None = None,
+) -> list[Hypothesis]:
+    if not _delete_allowed(inv):
+        return []
+    if profile is None:
+        profile = SegmentationProfile()
+
+    hypotheses: list[Hypothesis] = []
+    for selector in _candidate_selectors_for_objects(train_pairs, profile):
+        program = DeleteProgram(selector)
+        passed, total = verify_program(program, train_pairs, profile)
+        selector_bonus = 0.10 if selector.kind in {"LARGEST", "SMALLEST", "TOUCHING_BORDER", "NOT_TOUCHING_BORDER", "POSITION"} else 0.0
+        selector_penalty = 0.15 if selector.kind == "ALL" else 0.0
+        confidence = max(0.0, 0.75 + selector_bonus - selector_penalty)
+        hypotheses.append(
+            Hypothesis(
+                program=program,
+                generator="DeleteGenerator",
+                confidence=confidence,
+                train_match=f"{passed}/{total}",
+                match_rate=passed / total if total else 0.0,
+                notes=[f"Deletion selector candidate: {selector.to_dsl()}."],
             )
         )
 
@@ -244,6 +294,7 @@ def _generate_single_step_hypotheses(
     hypotheses: list[Hypothesis] = []
     hypotheses.extend(generate_translation_hypotheses(train_pairs, inv, profile))
     hypotheses.extend(generate_recolor_hypotheses(train_pairs, inv, profile))
+    hypotheses.extend(generate_delete_hypotheses(train_pairs, inv, profile))
     return hypotheses
 
 
