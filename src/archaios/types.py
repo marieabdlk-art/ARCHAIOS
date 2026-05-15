@@ -136,6 +136,15 @@ class DeleteProgram:
 
 
 @dataclass(frozen=True)
+class FillBBoxProgram:
+    selector: Selector
+    color: int
+
+    def to_dsl(self) -> str:
+        return f"FILL_BBOX({self.selector.to_dsl()}, color={self.color})"
+
+
+@dataclass(frozen=True)
 class SeqProgram:
     first: "Program"
     second: "Program"
@@ -144,7 +153,7 @@ class SeqProgram:
         return f"SEQ({self.first.to_dsl()}, {self.second.to_dsl()})"
 
 
-Program = Union[ShiftProgram, RecolorProgram, DeleteProgram, SeqProgram]
+Program = Union[ShiftProgram, RecolorProgram, DeleteProgram, FillBBoxProgram, SeqProgram]
 
 
 @dataclass
