@@ -21,6 +21,7 @@ Current MVP supports:
 - translation hypotheses;
 - recolor hypotheses;
 - deletion hypotheses;
+- bbox-fill hypotheses;
 - `SeqProgram` composition via residual-guided search;
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
@@ -78,6 +79,12 @@ The deletion example should produce a selector-based program similar to:
 DELETE(SELECT_SMALLEST(OBJECTS()))
 ```
 
+The bbox-fill example should produce a program similar to:
+
+```text
+FILL_BBOX(SELECT_LARGEST(OBJECTS()), color=3)
+```
+
 ## Python example
 
 ```bash
@@ -113,6 +120,7 @@ Implemented:
 - `TranslationGenerator`
 - `RecolorGenerator`
 - `DeleteGenerator`
+- `FillBBoxGenerator`
 - `SequenceGenerator`
 - `InvariantAnalyzer`
 - `Pipeline`
