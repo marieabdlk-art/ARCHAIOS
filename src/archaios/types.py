@@ -51,7 +51,7 @@ class Invariants:
 @dataclass(frozen=True)
 class Selector:
     kind: str
-    value: Optional[int] = None
+    value: Optional[Union[int, str]] = None
 
     @staticmethod
     def all() -> "Selector":
@@ -65,6 +65,28 @@ class Selector:
     def size(size: int) -> "Selector":
         return Selector("SIZE", size)
 
+    @staticmethod
+    def largest() -> "Selector":
+        return Selector("LARGEST")
+
+    @staticmethod
+    def smallest() -> "Selector":
+        return Selector("SMALLEST")
+
+    @staticmethod
+    def touching_border() -> "Selector":
+        return Selector("TOUCHING_BORDER")
+
+    @staticmethod
+    def not_touching_border() -> "Selector":
+        return Selector("NOT_TOUCHING_BORDER")
+
+    @staticmethod
+    def position(position: str) -> "Selector":
+        if position not in {"left", "right", "top", "bottom"}:
+            raise ValueError("position selector must be one of: left, right, top, bottom")
+        return Selector("POSITION", position)
+
     def to_dsl(self) -> str:
         if self.kind == "ALL":
             return "ALL"
@@ -72,6 +94,16 @@ class Selector:
             return f"OBJECTS(color={self.value})"
         if self.kind == "SIZE":
             return f"OBJECTS(size={self.value})"
+        if self.kind == "LARGEST":
+            return "SELECT_LARGEST(OBJECTS())"
+        if self.kind == "SMALLEST":
+            return "SELECT_SMALLEST(OBJECTS())"
+        if self.kind == "TOUCHING_BORDER":
+            return "OBJECTS(touches_border=true)"
+        if self.kind == "NOT_TOUCHING_BORDER":
+            return "OBJECTS(touches_border=false)"
+        if self.kind == "POSITION":
+            return f"OBJECTS(position={self.value})"
         return f"UNKNOWN_SELECTOR({self.kind},{self.value})"
 
 
@@ -96,6 +128,14 @@ class RecolorProgram:
 
 
 @dataclass(frozen=True)
+class DeleteProgram:
+    selector: Selector
+
+    def to_dsl(self) -> str:
+        return f"DELETE({self.selector.to_dsl()})"
+
+
+@dataclass(frozen=True)
 class SeqProgram:
     first: "Program"
     second: "Program"
@@ -104,7 +144,7 @@ class SeqProgram:
         return f"SEQ({self.first.to_dsl()}, {self.second.to_dsl()})"
 
 
-Program = Union[ShiftProgram, RecolorProgram, SeqProgram]
+Program = Union[ShiftProgram, RecolorProgram, DeleteProgram, SeqProgram]
 
 
 @dataclass
