@@ -23,6 +23,7 @@ Current MVP supports:
 - recolor hypotheses;
 - deletion hypotheses;
 - bbox-fill hypotheses;
+- analyzer-only symmetry inspection: vertical/horizontal, exact/color-agnostic;
 - `SeqProgram` composition via residual-guided search;
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
@@ -112,6 +113,18 @@ The bbox-fill example should produce a program similar to:
 FILL_BBOX(SELECT_LARGEST(OBJECTS()), color=3)
 ```
 
+Symmetry inspection is available as an analyzer-only utility:
+
+```python
+from archaios.symmetry import symmetry_report
+
+report = symmetry_report(grid, axis="vertical", color_mode="agnostic")
+print(report.score)
+print(report.asymmetric_cells)
+```
+
+See [`docs/SYMMETRY.md`](docs/SYMMETRY.md) for details.
+
 ## Python example
 
 ```bash
@@ -152,6 +165,7 @@ Implemented:
 - `FillBBoxGenerator`
 - `SequenceGenerator`
 - shape-based selectors
+- `SymmetryAnalyzer` utilities
 - `InvariantAnalyzer`
 - `Pipeline`
 - `archaios solve` CLI
@@ -160,6 +174,7 @@ Implemented:
 
 Planned:
 
+- `CompleteSymmetryGenerator` after symmetry semantics are stable;
 - deeper selector language: inside/outside selectors, relation selectors;
 - topology layer: inside/frame/hole/border-touching;
 - robustness evaluator via metamorphic consistency;
