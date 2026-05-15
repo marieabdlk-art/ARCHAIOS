@@ -5,10 +5,19 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from .pipeline import result_to_dict, run_pipeline
 
 
-def _load_task(path: Path) -> tuple[str, list[tuple[list[list[int]], list[list[int]]]], list[list[int]]]:
+def _load_task(
+    path: Path,
+) -> tuple[
+    str,
+    list[tuple[list[list[int]], list[list[int]]]],
+    list[list[int]],
+    list[list[int]] | None,
+]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -31,11 +40,19 @@ def _load_task(path: Path) -> tuple[str, list[tuple[list[list[int]], list[list[i
     if "input" not in first_test:
         raise ValueError("test[0] must contain 'input'")
 
-    return task_id, train_pairs, first_test["input"]
+    expected_test_output = first_test.get("output")
+    return task_id, train_pairs, first_test["input"], expected_test_output
+
+
+def _test_match(prediction, expected_test_output: list[list[int]] | None) -> str | None:
+    if expected_test_output is None or prediction is None:
+        return None
+    expected = np.array(expected_test_output, dtype=int)
+    return "1/1" if np.array_equal(prediction, expected) else "0/1"
 
 
 def _solve_path(task_path: Path, *, no_profile_fallback: bool, no_composition: bool) -> dict:
-    task_id, train_pairs, test_input = _load_task(task_path)
+    task_id, train_pairs, test_input, expected_test_output = _load_task(task_path)
     result = run_pipeline(
         task_id=task_id,
         train_pairs=train_pairs,
@@ -45,6 +62,7 @@ def _solve_path(task_path: Path, *, no_profile_fallback: bool, no_composition: b
     )
     payload = result_to_dict(result)
     payload["path"] = str(task_path)
+    payload["test_match"] = _test_match(result.prediction, expected_test_output)
     return payload
 
 
@@ -69,6 +87,8 @@ def _cmd_solve(args: argparse.Namespace) -> int:
         print(f"Profile    : {payload['profile']}")
         print(f"Program    : {payload['program']}")
         print(f"Train match: {payload['train_match']}")
+        if payload.get("test_match") is not None:
+            print(f"Test match : {payload['test_match']}")
         print(f"Confidence : {payload['confidence']:.3f}")
         print(f"Score      : {payload['score']:.4f}")
         print("Prediction :")
@@ -91,22 +111,28 @@ def _summary(rows: list[dict]) -> dict:
     solved = sum(1 for row in rows if row["status"] == "solved")
     fallback = sum(1 for row in rows if row["status"] == "fallback_low_confidence")
     failed = total - solved - fallback
+    test_evaluable = sum(1 for row in rows if row.get("test_match") is not None)
+    test_solved = sum(1 for row in rows if row.get("test_match") == "1/1")
     return {
         "total": total,
         "solved": solved,
         "fallback_low_confidence": fallback,
         "failed": failed,
         "solve_rate": solved / total if total else 0.0,
+        "test_evaluable": test_evaluable,
+        "test_solved": test_solved,
+        "test_accuracy": test_solved / test_evaluable if test_evaluable else None,
     }
 
 
 def _print_eval_table(rows: list[dict], summary: dict) -> None:
-    headers = ["task_id", "status", "generator", "train", "score", "program"]
+    headers = ["task_id", "status", "generator", "train", "test", "score", "program"]
     widths = {
         "task_id": max([len("task_id")] + [len(str(r["task_id"])) for r in rows]),
         "status": max([len("status")] + [len(str(r["status"])) for r in rows]),
         "generator": max([len("generator")] + [len(str(r["generator"])) for r in rows]),
         "train": max([len("train")] + [len(str(r["train_match"])) for r in rows]),
+        "test": max([len("test")] + [len(str(r.get("test_match") or "—")) for r in rows]),
         "score": len("score"),
         "program": max([len("program")] + [min(len(str(r["program"])), 60) for r in rows]),
     }
@@ -116,10 +142,11 @@ def _print_eval_table(rows: list[dict], summary: dict) -> None:
         f"{headers[1]:<{widths['status']}}  "
         f"{headers[2]:<{widths['generator']}}  "
         f"{headers[3]:<{widths['train']}}  "
-        f"{headers[4]:>{widths['score']}}  "
-        f"{headers[5]}"
+        f"{headers[4]:<{widths['test']}}  "
+        f"{headers[5]:>{widths['score']}}  "
+        f"{headers[6]}"
     )
-    print("-" * (sum(widths.values()) + 12))
+    print("-" * (sum(widths.values()) + 14))
 
     for row in rows:
         program = str(row["program"])
@@ -130,6 +157,7 @@ def _print_eval_table(rows: list[dict], summary: dict) -> None:
             f"{row['status']:<{widths['status']}}  "
             f"{row['generator']:<{widths['generator']}}  "
             f"{row['train_match']:<{widths['train']}}  "
+            f"{(row.get('test_match') or '—'):<{widths['test']}}  "
             f"{row['score']:>{widths['score']}.3f}  "
             f"{program}"
         )
@@ -140,6 +168,8 @@ def _print_eval_table(rows: list[dict], summary: dict) -> None:
     print(f"  fallback: {summary['fallback_low_confidence']}")
     print(f"  failed  : {summary['failed']}")
     print(f"  solve_rate: {summary['solve_rate']:.2%}")
+    if summary["test_accuracy"] is not None:
+        print(f"  test_accuracy: {summary['test_accuracy']:.2%} ({summary['test_solved']}/{summary['test_evaluable']})")
 
 
 def _cmd_eval(args: argparse.Namespace) -> int:
