@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .objects import detect_background, extract_objects, select_objects
-from .types import Grid, RecolorProgram, SegmentationProfile, ShiftProgram
+from .types import Grid, RecolorProgram, SegmentationProfile, SeqProgram, ShiftProgram
 
 
 class InvalidProgram(Exception):
@@ -77,4 +77,7 @@ def execute(program, grid: Grid, profile: SegmentationProfile | None = None) -> 
         return apply_shift_strict(grid, program, profile)
     if isinstance(program, RecolorProgram):
         return apply_recolor(grid, program, profile)
+    if isinstance(program, SeqProgram):
+        intermediate = execute(program.first, grid, profile)
+        return execute(program.second, intermediate, profile)
     raise InvalidProgram(f"unsupported program type: {type(program)}")
