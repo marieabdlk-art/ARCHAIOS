@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .objects import detect_background, extract_objects, select_objects
-from .types import Grid, RecolorProgram, SegmentationProfile, SeqProgram, ShiftProgram
+from .types import DeleteProgram, Grid, RecolorProgram, SegmentationProfile, SeqProgram, ShiftProgram
 
 
 class InvalidProgram(Exception):
@@ -72,11 +72,35 @@ def apply_recolor(
     return result
 
 
+def apply_delete(
+    grid: Grid,
+    program: DeleteProgram,
+    profile: SegmentationProfile | None = None,
+) -> Grid:
+    if profile is None:
+        profile = SegmentationProfile()
+    background = profile.background if profile.background is not None else detect_background(grid)
+    profile = SegmentationProfile(mode=profile.mode, connectivity=profile.connectivity, background=background)
+    objects = extract_objects(grid, background, profile=profile)
+    selected = select_objects(objects, program.selector)
+
+    if not selected:
+        raise InvalidProgram("empty selector")
+
+    result = grid.copy()
+    for obj in selected:
+        for r, c in obj.pixels:
+            result[r, c] = background
+    return result
+
+
 def execute(program, grid: Grid, profile: SegmentationProfile | None = None) -> Grid:
     if isinstance(program, ShiftProgram):
         return apply_shift_strict(grid, program, profile)
     if isinstance(program, RecolorProgram):
         return apply_recolor(grid, program, profile)
+    if isinstance(program, DeleteProgram):
+        return apply_delete(grid, program, profile)
     if isinstance(program, SeqProgram):
         intermediate = execute(program.first, grid, profile)
         return execute(program.second, intermediate, profile)
