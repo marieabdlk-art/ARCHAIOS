@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .executor import InvalidProgram, execute
-from .generators import generate_recolor_hypotheses, generate_translation_hypotheses
+from .generators import (
+    generate_recolor_hypotheses,
+    generate_sequence_hypotheses,
+    generate_translation_hypotheses,
+)
 from .invariants import detect_invariants, format_invariants
 from .objects import parse_grid
 from .types import Grid, Hypothesis, Invariants, SegmentationMode, SegmentationProfile
@@ -45,13 +49,15 @@ def special_case_penalty(h: Hypothesis) -> float:
         penalty += 0.05
     if "color=" in dsl and "ALL" not in dsl:
         penalty += 0.02
+    if dsl.startswith("SEQ"):
+        penalty += 0.03
     return penalty
 
 
 def rank_exact(hypotheses: list[Hypothesis]) -> list[RankedHypothesis]:
     ranked = []
     for h in hypotheses:
-        simplicity = 1.0 - min(program_length(h.program_dsl) / 10.0, 1.0)
+        simplicity = 1.0 - min(program_length(h.program_dsl) / 14.0, 1.0)
         score = 0.65 * h.confidence + 0.25 * simplicity - 0.10 * special_case_penalty(h)
         ranked.append(RankedHypothesis(hypothesis=h, score=round(score, 4), rank=0))
     ranked.sort(key=lambda item: item.score, reverse=True)
@@ -94,6 +100,7 @@ def run_pipeline(
     test_input: list[list[int]],
     profile: SegmentationProfile | None = None,
     try_profiles: bool = True,
+    allow_composition: bool = True,
 ) -> PipelineResult:
     parsed_train = [(parse_grid(inp), parse_grid(out)) for inp, out in train_pairs]
     test_grid = parse_grid(test_input)
@@ -113,6 +120,10 @@ def run_pipeline(
         hypotheses: list[Hypothesis] = []
         hypotheses.extend(generate_translation_hypotheses(parsed_train, inv, current_profile))
         hypotheses.extend(generate_recolor_hypotheses(parsed_train, inv, current_profile))
+
+        exact_single = [h for h in hypotheses if h.match_rate == 1.0]
+        if allow_composition and not exact_single and hypotheses:
+            hypotheses.extend(generate_sequence_hypotheses(parsed_train, hypotheses, current_profile))
 
         if not hypotheses:
             result = PipelineResult(
