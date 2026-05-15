@@ -17,8 +17,10 @@ Current MVP supports:
 
 - object extraction with configurable segmentation profiles;
 - invariant analysis;
+- expanded selectors: `ALL`, `COLOR`, `SIZE`, `LARGEST`, `SMALLEST`, `TOUCHING_BORDER`, `NOT_TOUCHING_BORDER`, `POSITION`;
 - translation hypotheses;
 - recolor hypotheses;
+- deletion hypotheses;
 - `SeqProgram` composition via residual-guided search;
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
@@ -70,6 +72,12 @@ The mixed example task should produce a residual-guided composition similar to:
 SEQ(SHIFT(OBJECTS(color=2), dx=2, dy=0), RECOLOR(OBJECTS(color=1), {1->3}))
 ```
 
+The deletion example should produce a selector-based program similar to:
+
+```text
+DELETE(SELECT_SMALLEST(OBJECTS()))
+```
+
 ## Python example
 
 ```bash
@@ -104,6 +112,7 @@ Implemented:
 
 - `TranslationGenerator`
 - `RecolorGenerator`
+- `DeleteGenerator`
 - `SequenceGenerator`
 - `InvariantAnalyzer`
 - `Pipeline`
@@ -112,7 +121,7 @@ Implemented:
 
 Planned:
 
-- deeper selector language: largest/smallest/touching-border;
+- deeper selector language: shape-based selectors, inside/outside selectors, relation selectors;
 - topology layer: inside/frame/hole/border-touching;
 - robustness evaluator via metamorphic consistency;
 - evaluation on curated ARC-Easy subset.
