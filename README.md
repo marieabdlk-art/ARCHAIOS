@@ -9,8 +9,9 @@ Instead of directly predicting an output grid, ARCHAIOS:
 3. activates targeted hypothesis generators;
 4. produces executable DSL-like programs;
 5. verifies candidates on train pairs;
-6. ranks exact programs separately from fallback candidates;
-7. returns prediction + reasoning trace.
+6. composes residual-guided two-step programs when one operation is insufficient;
+7. ranks exact programs separately from fallback candidates;
+8. returns prediction + reasoning trace.
 
 Current MVP supports:
 
@@ -18,6 +19,7 @@ Current MVP supports:
 - invariant analysis;
 - translation hypotheses;
 - recolor hypotheses;
+- `SeqProgram` composition via residual-guided search;
 - strict `SHIFT` semantics: no clipping, no collisions with non-selected objects;
 - exact-match verification;
 - traceable pipeline.
@@ -48,12 +50,13 @@ Implemented:
 
 - `TranslationGenerator`
 - `RecolorGenerator`
+- `SequenceGenerator`
 - `InvariantAnalyzer`
 - `Pipeline`
 
 Planned:
 
-- `SeqProgram` and residual-guided composition;
+- deeper selector language: largest/smallest/touching-border;
 - topology layer: inside/frame/hole/border-touching;
 - robustness evaluator via metamorphic consistency;
 - evaluation harness on curated ARC-Easy subset.
