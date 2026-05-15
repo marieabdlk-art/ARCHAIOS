@@ -15,7 +15,17 @@ Implemented:
 - basic pipeline trace;
 - unit tests for translation and recolor.
 
-## v0.2 — Strict symbolic core
+## v0.2 — Residual-guided composition
+
+Implemented:
+
+- `SeqProgram`;
+- residual-guided two-step composition;
+- `SHIFT → RECOLOR` support;
+- verification over composed programs;
+- mixed-task unit test.
+
+## v0.3 — Strict symbolic core improvements
 
 Planned:
 
@@ -24,16 +34,6 @@ Planned:
 - better fallback reporting;
 - JSON trace schema;
 - CLI entrypoint.
-
-## v0.3 — Composition
-
-Planned:
-
-- `SeqProgram`;
-- residual-guided two-step composition;
-- `SHIFT → RECOLOR`;
-- `RECOLOR → SHIFT`;
-- verification over composed programs.
 
 ## v0.4 — Topology layer
 
